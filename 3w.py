@@ -154,7 +154,7 @@ def display_calendar_table():
                     # Determine color based on average
                     if avg_val < 3:
                         bg_color = "#c8e6c9"  # Light green
-                    elif avg_val < 4.5:
+                    elif avg_val < 4:
                         bg_color = "#fff9c4"  # Light yellow
                     else:
                         bg_color = "#ffcdd2"  # Light red
@@ -186,6 +186,7 @@ def main():
     
     # Simple sliders
     st.subheader("Today's Intake")
+    st.divider()
     sugar = st.slider("🍬 Sugar", 1.0, 10.0, 5.0, 0.01)
     salt = st.slider("🧂Salt", 1.0, 10.0, 5.0, 0.01)
     flour = st.slider("🍞 Flour", 1.0, 10.0, 5.0, 0.01)
