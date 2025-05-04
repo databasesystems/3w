@@ -25,35 +25,42 @@ def init_db():
     conn.close()
     return "Database initialized"
 
-def save_to_db(sugar, salt, flour):
+def save_to_db(sugar, salt, flour, date_str=None):
+    """
+    Save values to the database for a specific date.
+    If date_str is None, use current date.
+    """
     conn = sqlite3.connect('3whites.db')
     c = conn.cursor()
     
-    # Get today's date in YYYY-MM-DD format
-    today = datetime.now().strftime("%Y-%m-%d")
+    # If no date provided, use current date
+    if date_str is None:
+        date_str = datetime.now().strftime("%Y-%m-%d")
     
-    # Check if a record for today already exists
-    c.execute("SELECT id FROM measurements WHERE date(timestamp) = ?", (today,))
+    # Check if a record for this date already exists
+    c.execute("""
+        SELECT id FROM measurements 
+        WHERE date(timestamp) = ?
+    """, (date_str,))
+    
     existing_record = c.fetchone()
     
     if existing_record:
         # Update existing record
         c.execute("""
             UPDATE measurements 
-            SET sugar = ?, salt = ?, flour = ?, timestamp = ?
+            SET sugar = ?, salt = ?, flour = ?
             WHERE date(timestamp) = ?
-        """, (sugar, salt, flour, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), today))
-        message = "Today's record updated"
+        """, (sugar, salt, flour, date_str))
     else:
-        # Insert new record
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        c.execute("INSERT INTO measurements (timestamp, sugar, salt, flour) VALUES (?, ?, ?, ?)",
-                (timestamp, sugar, salt, flour))
-        message = "New record created"
+        # Create new record with specific date
+        c.execute("""
+            INSERT INTO measurements (sugar, salt, flour, timestamp) 
+            VALUES (?, ?, ?, ?)
+        """, (sugar, salt, flour, date_str))
     
     conn.commit()
     conn.close()
-    return message
 
 def get_daily_averages():
     conn = sqlite3.connect('3whites.db')
@@ -72,22 +79,22 @@ def get_daily_averages():
 
 def get_average_for_day(date_str):
     """
-    Calculate the average value of sugar, salt, and flour for a specific day.
-    Returns None if no data exists for that day.
+    Get the average of sugar, salt, and flour for a specific day.
+    This is used for coloring the calendar.
     """
     conn = sqlite3.connect('3whites.db')
     c = conn.cursor()
     
     c.execute("""
-        SELECT AVG((sugar + salt + flour) / 3) 
+        SELECT (sugar + salt + flour) / 3 
         FROM measurements 
         WHERE date(timestamp) = ?
     """, (date_str,))
     
-    result = c.fetchone()[0]
+    result = c.fetchone()
     conn.close()
     
-    return result  # Will be None if no records exist
+    return result[0] if result else None
 
 def display_calendar_table():
     # Initialize session state for selected date if not exists
@@ -282,6 +289,10 @@ def add_footer():
     )
 
 def get_record_for_date(date_str):
+    """
+    Get the sugar, salt, flour values for a specific date.
+    If no record exists, return default values.
+    """
     conn = sqlite3.connect('3whites.db')
     c = conn.cursor()
     
@@ -298,7 +309,7 @@ def get_record_for_date(date_str):
     if record:
         return {"sugar": record[0], "salt": record[1], "flour": record[2]}
     else:
-        return {"sugar": 5.0, "salt": 5.0, "flour": 5.0}
+        return {"sugar": 5.0, "salt": 5.0, "flour": 5.0}  # Default values
 
 def main():
     st.title("🍚 3 whites tracker")
@@ -308,6 +319,17 @@ def main():
         init_db()
     except Exception as e:
         st.error(f"Database error: {str(e)}")
+    
+    # Initialize session state for selected date if not exists
+    if 'selected_date' not in st.session_state:
+        st.session_state.selected_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Check URL parameter for date selection
+    if "date" in st.query_params:
+        date_param = st.query_params["date"]
+        if date_param != st.session_state.selected_date:
+            st.session_state.selected_date = date_param
+            st.rerun()
     
     # Get record for selected date
     selected_date = st.session_state.selected_date
@@ -319,33 +341,21 @@ def main():
     
     # Simple sliders with values for the selected date
     st.subheader("Intake Values")
-    
-    # Show if we're viewing today or a different day
-    is_today = selected_date == datetime.now().strftime("%Y-%m-%d")
-    if is_today:
-        st.write(f"Values for today: **{formatted_date}**")
-    else:
-        st.write(f"Values for: **{formatted_date}**")
+    st.write(f"Values for: **{formatted_date}**")
     
     st.divider()
     sugar = st.slider("🍬 Sugar", 1.0, 10.0, record["sugar"], 0.01)
     salt = st.slider("🧂Salt", 1.0, 10.0, record["salt"], 0.01)
     flour = st.slider("🍞 Flour", 1.0, 10.0, record["flour"], 0.01)
     
-    # Save button (only enable for today's date)
-    if is_today:
-        if st.button("Save Values"):
-            try:
-                save_to_db(sugar, salt, flour)
-                st.success("Values saved successfully!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Save error: {str(e)}")
-    else:
-        st.info("You're viewing a past date. Return to today's date to save values.")
-        if st.button("Return to Today"):
-            st.session_state.selected_date = datetime.now().strftime("%Y-%m-%d")
-            st.rerun()
+    # Save button
+    if st.button("Save Values"):
+        try:
+            save_to_db(sugar, salt, flour, selected_date)
+            st.success("Values saved successfully!")
+            st.rerun()  # Refresh to update the calendar colors
+        except Exception as e:
+            st.error(f"Save error: {str(e)}")
     
     st.divider()
     
