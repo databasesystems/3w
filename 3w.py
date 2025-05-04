@@ -175,8 +175,31 @@ def display_calendar_table():
     # Display the HTML table
     st.markdown(html, unsafe_allow_html=True)
 
+def get_today_record():
+    conn = sqlite3.connect('3whites.db')
+    c = conn.cursor()
+    
+    # Get today's date in YYYY-MM-DD format
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    # Check if a record for today exists
+    c.execute("""
+        SELECT sugar, salt, flour 
+        FROM measurements 
+        WHERE date(timestamp) = ?
+    """, (today,))
+    
+    record = c.fetchone()
+    conn.close()
+    
+    if record:
+        return {"sugar": record[0], "salt": record[1], "flour": record[2]}
+    else:
+        return {"sugar": 5.0, "salt": 5.0, "flour": 5.0}
+
+
 def main():
-    st.title("🍚 Starch Tracker")
+    st.title("🍚 3 whites tracker")
 
     # Initialize database
     try:
@@ -184,12 +207,15 @@ def main():
     except Exception as e:
         st.error(f"Database error: {str(e)}")
     
-    # Simple sliders
+    # Get today's record or default values
+    today_record = get_today_record()
+    
+    # Simple sliders with today's values
     st.subheader("Today's Intake")
     st.divider()
-    sugar = st.slider("🍬 Sugar", 1.0, 10.0, 5.0, 0.01)
-    salt = st.slider("🧂Salt", 1.0, 10.0, 5.0, 0.01)
-    flour = st.slider("🍞 Flour", 1.0, 10.0, 5.0, 0.01)
+    sugar = st.slider("🍬 Sugar", 1.0, 10.0, today_record["sugar"], 0.01)
+    salt = st.slider("🧂Salt", 1.0, 10.0, today_record["salt"], 0.01)
+    flour = st.slider("🍞 Flour", 1.0, 10.0, today_record["flour"], 0.01)
     
     # Save button
     if st.button("Save Values"):
@@ -205,7 +231,6 @@ def main():
     
     # Display simple calendar
     display_calendar_table()
-()
-    
+
 if __name__ == "__main__":
     main()
