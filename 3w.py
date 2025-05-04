@@ -213,9 +213,9 @@ def main():
     # Simple sliders with today's values
     st.subheader("Today's Intake")
     st.divider()
-    sugar = st.slider("🍬 Sugar", 1.0, 10.0, today_record["sugar"], 0.01)
-    salt = st.slider("🧂Salt", 1.0, 10.0, today_record["salt"], 0.01)
-    flour = st.slider("🍞 Flour", 1.0, 10.0, today_record["flour"], 0.01)
+    sugar = st.slider("🍬 Sugar", 0.00001, 10.0, today_record["sugar"], 0.01)
+    salt = st.slider("🧂Salt", 0.00001, 10.0, today_record["salt"], 0.01)
+    flour = st.slider("🍞 Flour", 0.00001, 10.0, today_record["flour"], 0.01)
     
     # Save button
     if st.button("Save Values"):
