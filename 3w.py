@@ -4,6 +4,11 @@ import pandas as pd
 from datetime import datetime
 import calendar
 
+
+# Initialize session state for selected date
+if 'selected_date' not in st.session_state:
+    st.session_state.selected_date = datetime.now().strftime("%Y-%m-%d")
+
 def init_db():
     conn = sqlite3.connect('3whites.db')
     c = conn.cursor()
@@ -65,7 +70,30 @@ def get_daily_averages():
     conn.close()
     return df
 
+def get_average_for_day(date_str):
+    """
+    Calculate the average value of sugar, salt, and flour for a specific day.
+    Returns None if no data exists for that day.
+    """
+    conn = sqlite3.connect('3whites.db')
+    c = conn.cursor()
+    
+    c.execute("""
+        SELECT AVG((sugar + salt + flour) / 3) 
+        FROM measurements 
+        WHERE date(timestamp) = ?
+    """, (date_str,))
+    
+    result = c.fetchone()[0]
+    conn.close()
+    
+    return result  # Will be None if no records exist
+
 def display_calendar_table():
+    # Initialize session state for selected date if not exists
+    if 'selected_date' not in st.session_state:
+        st.session_state.selected_date = datetime.now().strftime("%Y-%m-%d")
+        
     st.subheader(f" {datetime.now().strftime('%B %Y')}")
 
     # Add a legend with exact calendar colors and black text
@@ -105,6 +133,13 @@ def display_calendar_table():
     # Get month calendar
     cal = calendar.monthcalendar(year, month)
     
+    # Check URL parameter for date selection
+    if "date" in st.query_params:
+        date_param = st.query_params["date"]
+        if date_param != st.session_state.selected_date:
+            st.session_state.selected_date = date_param
+            st.rerun()
+    
     # Build HTML table for calendar
     html = """
     <style>
@@ -124,6 +159,20 @@ def display_calendar_table():
         padding: 5px;
         border-radius: 5px;
         height: 30px;
+    }
+    .calendar-table a {
+        text-decoration: none;
+        color: black;
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    .calendar-table a:hover {
+        font-weight: bold;
+    }
+    .selected-date {
+        border: 2px solid #333;
+        font-weight: bold;
     }
     </style>
     <table class="calendar-table">
@@ -152,6 +201,9 @@ def display_calendar_table():
                 # Format the date string
                 date_str = f"{year}-{month:02d}-{day:02d}"
                 
+                # Check if this is the selected date
+                selected_class = " selected-date" if date_str == st.session_state.selected_date else ""
+                
                 # Check if we have data for this day
                 if not daily_data.empty and date_str in daily_data['date_str'].values:
                     # Get data for this day
@@ -171,11 +223,11 @@ def display_calendar_table():
                     else:
                         bg_color = "#ffcdd2"  # Light red
                     
-                    # Add colored day cell
-                    html += f'<td style="background-color:{bg_color};"><span style="color:black;">{day}</span></td>'
+                    # Add colored day cell with clickable link
+                    html += f'<td class="{selected_class}" style="background-color:{bg_color};"><a href="?date={date_str}">{day}</a></td>'
                 else:
-                    # Add regular day cell
-                    html += f'<td style="background-color:#f5f5f5;"><span style="color:black;">{day}</span></td>'
+                    # Add regular day cell with clickable link
+                    html += f'<td class="{selected_class}" style="background-color:#f5f5f5;"><a href="?date={date_str}">{day}</a></td>'
         
         html += "</tr>"
     
@@ -229,6 +281,24 @@ def add_footer():
         unsafe_allow_html=True
     )
 
+def get_record_for_date(date_str):
+    conn = sqlite3.connect('3whites.db')
+    c = conn.cursor()
+    
+    # Check if a record for the selected date exists
+    c.execute("""
+        SELECT sugar, salt, flour 
+        FROM measurements 
+        WHERE date(timestamp) = ?
+    """, (date_str,))
+    
+    record = c.fetchone()
+    conn.close()
+    
+    if record:
+        return {"sugar": record[0], "salt": record[1], "flour": record[2]}
+    else:
+        return {"sugar": 5.0, "salt": 5.0, "flour": 5.0}
 
 def main():
     st.title("🍚 3 whites tracker")
@@ -239,33 +309,50 @@ def main():
     except Exception as e:
         st.error(f"Database error: {str(e)}")
     
-    # Get today's record or default values
-    today_record = get_today_record()
+    # Get record for selected date
+    selected_date = st.session_state.selected_date
+    record = get_record_for_date(selected_date)
     
-    # Simple sliders with today's values
-    st.subheader("Today's Intake")
-    st.write("Use the sliders to adjust the values for today")
+    # Format the selected date for display
+    selected_date_obj = datetime.strptime(selected_date, "%Y-%m-%d")
+    formatted_date = selected_date_obj.strftime("%A, %B %d, %Y")
+    
+    # Simple sliders with values for the selected date
+    st.subheader("Intake Values")
+    
+    # Show if we're viewing today or a different day
+    is_today = selected_date == datetime.now().strftime("%Y-%m-%d")
+    if is_today:
+        st.write(f"Values for today: **{formatted_date}**")
+    else:
+        st.write(f"Values for: **{formatted_date}**")
+    
     st.divider()
-    sugar = st.slider("🍬 Sugar", 0.00001, 10.0, today_record["sugar"], 0.01)
-    salt = st.slider("🧂Salt", 0.00001, 10.0, today_record["salt"], 0.01)
-    flour = st.slider("🍞 Flour", 0.00001, 10.0, today_record["flour"], 0.01)
+    sugar = st.slider("🍬 Sugar", 1.0, 10.0, record["sugar"], 0.01)
+    salt = st.slider("🧂Salt", 1.0, 10.0, record["salt"], 0.01)
+    flour = st.slider("🍞 Flour", 1.0, 10.0, record["flour"], 0.01)
     
-    # Save button
-    if st.button("Save Values"):
-        try:
-            save_to_db(sugar, salt, flour)
-            st.success("Values saved successfully!")
-            # Force a complete rerun of the app
+    # Save button (only enable for today's date)
+    if is_today:
+        if st.button("Save Values"):
+            try:
+                save_to_db(sugar, salt, flour)
+                st.success("Values saved successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Save error: {str(e)}")
+    else:
+        st.info("You're viewing a past date. Return to today's date to save values.")
+        if st.button("Return to Today"):
+            st.session_state.selected_date = datetime.now().strftime("%Y-%m-%d")
             st.rerun()
-        except Exception as e:
-            st.error(f"Save error: {str(e)}")
-        
+    
     st.divider()
     
-    # Display simple calendar
+    # Display calendar
     display_calendar_table()
-
-    # Add footer with copyright
+    
+    # Add footer
     add_footer()
 
 if __name__ == "__main__":
