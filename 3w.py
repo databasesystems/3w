@@ -67,7 +67,19 @@ def get_daily_averages():
 
 def display_calendar_table():
     st.subheader(f" {datetime.now().strftime('%B %Y')}")
-    
+
+    # Add a legend with exact calendar colors and black text
+    st.markdown(
+        """
+        <div style="font-size: 0.85em; margin: -5px 0 15px 0; text-align: center;">
+            <span style="background-color: #c8e6c9; color: black; padding: 0 8px; border-radius: 3px;">Good job!</span> &nbsp;&nbsp; 
+            <span style="background-color: #fff9c4; color: black; padding: 0 8px; border-radius: 3px;">Be aware</span> &nbsp;&nbsp; 
+            <span style="background-color: #ffcdd2; color: black; padding: 0 8px; border-radius: 3px;">You are overdoing it</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     # Get daily data from database
     conn = sqlite3.connect('3whites.db')
     daily_data = pd.read_sql_query('''
@@ -198,6 +210,26 @@ def get_today_record():
         return {"sugar": 5.0, "salt": 5.0, "flour": 5.0}
 
 
+
+def add_footer():
+    # Add a divider
+    st.divider()
+    
+    # Get current year
+    current_year = datetime.now().year
+    
+    # Create footer with copyright text
+    st.markdown(
+        f"""
+        <div style="text-align: left; color: #888; padding: 10px 0;">
+        Developed by databasesystems.info
+        <br> © {current_year} All rights reserved.
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
+
 def main():
     st.title("🍚 3 whites tracker")
 
@@ -212,6 +244,7 @@ def main():
     
     # Simple sliders with today's values
     st.subheader("Today's Intake")
+    st.write("Use the sliders to adjust the values for today")
     st.divider()
     sugar = st.slider("🍬 Sugar", 0.00001, 10.0, today_record["sugar"], 0.01)
     salt = st.slider("🧂Salt", 0.00001, 10.0, today_record["salt"], 0.01)
@@ -232,5 +265,9 @@ def main():
     # Display simple calendar
     display_calendar_table()
 
+    # Add footer with copyright
+    add_footer()
+
 if __name__ == "__main__":
     main()
+
