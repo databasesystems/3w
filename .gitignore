@@ -1,3 +1,19 @@
+# SQLite database files
+*.db
+*.db-journal
+3whites.db
+3whites.db-shm
+3whites.db-wal
+
+# Streamlit specific
+.streamlit/secrets.toml
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
